@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EV Battery Monitoring Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .card {
+            background-color: white;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            padding: 1.5rem;
+            transition: all 0.3s ease-in-out;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+        .alert-banner {
+            display: none;
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .tab-button.active {
+            border-bottom-color: #4f46e5;
+            color: #4f46e5;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+    <div id="alert-banner" class="alert-banner max-w-sm mx-auto bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg shadow-lg" role="alert">
+        <div class="flex">
+            <div class="py-1">
+                <svg class="fill-current h-6 w-6 text-red-500 mr-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                    <path d="M2.93 17.07A10 10 0 1 1 17.07 2.93 10 10 0 0 1 2.93 17.07zM10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm-1-5a1 1 0 0 1 1-1h2a1 1 0 0 1 0 2h-2a1 1 0 0 1-1-1zm-1-4a1 1 0 0 1 1-1h2a1 1 0 1 1 0 2H9a1 1 0 0 1-1-1z"/>
+                </svg>
+            </div>
+            <div>
+                <p class="font-bold">Critical Temperature Alert!</p>
+                <p id="alert-message" class="text-sm">Your battery has exceeded the safe temperature threshold.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-900">EV Battery Health Platform</h1>
+            <p class="text-lg text-gray-600 mt-2">Register your vehicle and monitor its battery health in real-time.</p>
+        </header>
+
+        <!-- Tabs -->
+        <div class="mb-8 border-b border-gray-200">
+            <nav class="flex space-x-8" aria-label="Tabs">
+                <button onclick="switchTab('dashboard')" class="tab-button active py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">Dashboard</button>
+                <button onclick="switchTab('registration')" class="tab-button py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">Registration</button>
+                <button onclick="switchTab('history')" class="tab-button py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">Alert History</button>
+                <button onclick="switchTab('certificate')" class="tab-button py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">Certificate</button>
+            </nav>
+        </div>
+
+        <!-- Dashboard Tab -->
+        <div id="dashboard" class="tab-content active">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <!-- Vehicle Info Card -->
+                <div class="card col-span-1 md:col-span-2">
+                    <h2 class="text-xl font-semibold mb-4">Vehicle & Battery Information</h2>
+                    <div id="vehicle-info-display" class="space-y-2 text-gray-600">
+                        <p><strong>Car Name:</strong> <span id="display-carName">N/A</span></p>
+                        <p><strong>Battery Model:</strong> <span id="display-batteryModel">N/A</span></p>
+                        <p><strong>Capacity:</strong> <span id="display-batteryCapacity">N/A</span> kWh</p>
+                        <p><strong>Serial Number:</strong> <span id="display-serialNumber">N/A</span></p>
+                        <p><strong>Manufacturer:</strong> <span id="display-manufacturer">N/A</span></p>
+                        <p><strong>Commissioning Date:</strong> <span id="display-commissioningDate">N/A</span></p>
+                    </div>
+                </div>
+                <!-- Real-time Metrics -->
+                <div class="card">
+                    <h3 class="text-lg font-semibold mb-2">Temperature</h3>
+                    <p id="temp-display" class="text-5xl font-bold text-indigo-600">-- °C</p>
+                </div>
+                <div class="card">
+                    <h3 class="text-lg font-semibold mb-2">Voltage</h3>
+                    <p id="volt-display" class="text-5xl font-bold text-green-600">-- V</p>
+                </div>
+            </div>
+            <div class="card">
+                <h2 class="text-xl font-semibold mb-4">System Status & Recommendations</h2>
+                <div id="adaptive-guidance" class="text-gray-600">
+                    <p>All systems normal. Keep monitoring for optimal performance.</p>
+                </div>
+                <div class="mt-6 flex flex-wrap gap-4">
+                    <button id="refresh-button" onclick="refreshAllData()" class="w-full sm:w-auto bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 flex items-center justify-center">
+                        <svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0011.664 0l3.18-3.185m-7.528 0V4.632m0 1.352a8.25 8.25 0 0111.664 0l3.18 3.183m-7.528 0l-3.181 3.183m0 0l-3.181-3.183" />
+                        </svg>
+                        Refresh Data
+                    </button>
+                    <button onclick="switchTab('certificate')" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300">
+                        Generate Certificate
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Registration Tab -->
+        <div id="registration" class="tab-content">
+            <div class="card max-w-2xl mx-auto">
+                <h2 class="text-2xl font-bold mb-6 text-center">Register Battery & Vehicle</h2>
+                <form id="registration-form">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="md:col-span-2">
+                            <label for="carName" class="block text-sm font-medium text-gray-700">Car Name</label>
+                            <input type="text" id="carName" name="carName" required class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="batteryModel" class="block text-sm font-medium text-gray-700">Battery Model</label>
+                            <input type="text" id="batteryModel" name="batteryModel" required class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="batteryCapacity" class="block text-sm font-medium text-gray-700">Rated Capacity (kWh)</label>
+                            <input type="number" id="batteryCapacity" name="batteryCapacity" required class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="serialNumber" class="block text-sm font-medium text-gray-700">Serial/ID Number</label>
+                            <input type="text" id="serialNumber" name="serialNumber" required class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="manufacturer" class="block text-sm font-medium text-gray-700">Manufacturer</label>
+                            <input type="text" id="manufacturer" name="manufacturer" required class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        </div>
+                        <div class="md:col-span-2">
+                            <label for="commissioningDate" class="block text-sm font-medium text-gray-700">Commissioning Date</label>
+                            <input type="date" id="commissioningDate" name="commissioningDate" required class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        </div>
+                        <div class="md:col-span-2">
+                            <label for="otherInfo" class="block text-sm font-medium text-gray-700">Other Custom Fields (Optional, JSON format)</label>
+                            <textarea id="otherInfo" name="otherInfo" rows="3" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder='{"key": "value"}'></textarea>
+                        </div>
+                    </div>
+                    <div class="mt-8 text-center">
+                        <button type="submit" class="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg transition duration-300">
+                            Register Device
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Alert History Tab -->
+        <div id="history" class="tab-content">
+            <div class="card">
+                <h2 class="text-2xl font-bold mb-6">Alert History</h2>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Timestamp</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Temperature</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-table-body" class="bg-white divide-y divide-gray-200">
+                            <tr><td colspan="3" class="px-6 py-4 text-center text-gray-500">No alerts recorded yet.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Certificate Tab -->
+        <div id="certificate" class="tab-content">
+            <div class="card">
+                <h2 class="text-2xl font-bold mb-6">Battery Risk Certificate</h2>
+                <p class="text-gray-600 mb-4">This certificate summarizes the battery health, risk assessment, and registration details of your EV.</p>
+                <div id="certificate-preview" class="bg-gray-50 p-6 rounded-lg mb-6 border border-gray-200">
+                    <p><strong>Vehicle:</strong> <span id="cert-carName">N/A</span></p>
+                    <p><strong>Battery Model:</strong> <span id="cert-batteryModel">N/A</span></p>
+                    <p><strong>Serial Number:</strong> <span id="cert-serialNumber">N/A</span></p>
+                    <p><strong>Last Temperature:</strong> <span id="cert-temp">-- °C</span></p>
+                    <p><strong>Status:</strong> <span id="cert-status">Normal</span></p>
+                    <p class="mt-4 text-sm text-gray-500">Generated on: <span id="cert-date">Loading...</span></p>
+                </div>
+                <button onclick="exportCertificate()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-lg transition duration-300">
+                    📄 Download Certificate (PDF)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://127.0.0.1:5000';
+
+        // --- Tab Switching (Fixed: No 'event' dependency) ---
+        function switchTab(tabId) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            // Deactivate all buttons
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('active');
+            });
+            // Show selected tab
+            document.getElementById(tabId).classList.add('active');
+            // Activate corresponding button
+            const buttons = document.querySelectorAll('.tab-button');
+            for (let btn of buttons) {
+                if (btn.getAttribute('onclick') === `switchTab('${tabId}')`) {
+                    btn.classList.add('active');
+                    break;
+                }
+            }
+
+            // If switching to certificate, update preview
+            if (tabId === 'certificate') {
+                updateCertificatePreview();
+            }
+        }
+
+        // --- Update Certificate Preview ---
+        function updateCertificatePreview() {
+            const carName = document.getElementById('display-carName').textContent;
+            const batteryModel = document.getElementById('display-batteryModel').textContent;
+            const serialNumber = document.getElementById('display-serialNumber').textContent;
+            const tempText = document.getElementById('temp-display').textContent;
+            const statusEl = document.getElementById('adaptive-guidance').textContent;
+
+            document.getElementById('cert-carName').textContent = carName;
+            document.getElementById('cert-batteryModel').textContent = batteryModel;
+            document.getElementById('cert-serialNumber').textContent = serialNumber;
+            document.getElementById('cert-temp').textContent = tempText;
+            document.getElementById('cert-status').textContent = statusEl.includes('CRITICAL') ? 'High Risk' : statusEl.includes('WARNING') ? 'Elevated Risk' : 'Normal';
+            document.getElementById('cert-date').textContent = new Date().toLocaleString();
+        }
+
+        // --- Registration Logic ---
+        const registrationForm = document.getElementById('registration-form');
+        registrationForm.addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const formData = new FormData(registrationForm);
+            const data = Object.fromEntries(formData.entries());
+
+            if (data.otherInfo) {
+                try {
+                    JSON.parse(data.otherInfo);
+                } catch (e) {
+                    alert('Invalid JSON format in "Other Custom Fields".');
+                    return;
+                }
+            } else {
+                data.otherInfo = '{}';
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data),
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    alert('Registration successful!');
+                    updateDashboardInfo(data);
+                    switchTab('dashboard');
+                } else {
+                    throw new Error(result.message || 'Failed to register.');
+                }
+            } catch (error) {
+                console.error('Registration error:', error);
+                alert(`Registration failed: ${error.message}`);
+            }
+        });
+
+        function updateDashboardInfo(data) {
+            document.getElementById('display-carName').textContent = data.carName || 'N/A';
+            document.getElementById('display-batteryModel').textContent = data.batteryModel || 'N/A';
+            document.getElementById('display-batteryCapacity').textContent = data.batteryCapacity || 'N/A';
+            document.getElementById('display-serialNumber').textContent = data.serialNumber || 'N/A';
+            document.getElementById('display-manufacturer').textContent = data.manufacturer || 'N/A';
+            document.getElementById('display-commissioningDate').textContent = data.commissioningDate || 'N/A';
+        }
+
+        // --- Real-time Data Fetching ---
+        async function fetchData() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/data`);
+                if (!response.ok) throw new Error('Network response was not ok');
+                const data = await response.json();
+
+                const tempDisplay = document.getElementById('temp-display');
+                const voltDisplay = document.getElementById('volt-display');
+
+                tempDisplay.textContent = `${data.temperature.toFixed(2)} °C`;
+                voltDisplay.textContent = `${data.voltage.toFixed(2)} V`;
+
+                if (data.temperature > 50) {
+                    tempDisplay.className = 'text-5xl font-bold text-red-600';
+                    showThermalAlert(data.temperature);
+                } else if (data.temperature > 40) {
+                    tempDisplay.className = 'text-5xl font-bold text-yellow-500';
+                } else {
+                    tempDisplay.className = 'text-5xl font-bold text-indigo-600';
+                }
+
+                updateGuidance(data.temperature);
+
+                if (document.getElementById('display-carName').textContent === 'N/A' && data.vehicle_info && data.vehicle_info.carName) {
+                    updateDashboardInfo(data.vehicle_info);
+                }
+            } catch (error) {
+                console.error('Failed to fetch data:', error);
+                document.getElementById('temp-display').textContent = 'Error';
+                document.getElementById('volt-display').textContent = 'Error';
+            }
+        }
+
+        function updateGuidance(temp) {
+            const guidanceEl = document.getElementById('adaptive-guidance');
+            if (temp > 50) {
+                guidanceEl.innerHTML = '<p class="text-red-600 font-bold">CRITICAL: High temperature detected! Consider stopping your vehicle and allowing the battery to cool. Avoid charging until temperature normalizes.</p>';
+            } else if (temp > 45) {
+                guidanceEl.innerHTML = '<p class="text-yellow-600 font-semibold">WARNING: Temperature is elevated. Reduce charging rate or avoid high-performance driving to prevent overheating.</p>';
+            } else {
+                guidanceEl.innerHTML = '<p>All systems normal. Keep monitoring for optimal performance.</p>';
+            }
+        }
+
+        function showThermalAlert(temp) {
+            document.getElementById('alert-message').textContent = `Battery temperature reached ${temp.toFixed(2)}°C, exceeding the safe limit.`;
+            document.getElementById('alert-banner').style.display = 'block';
+            setTimeout(() => {
+                document.getElementById('alert-banner').style.display = 'none';
+            }, 10000);
+        }
+
+        // --- Alert History ---
+        async function fetchHistory() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/history`);
+                const historyData = await response.json();
+                const tableBody = document.getElementById('history-table-body');
+                tableBody.innerHTML = '';
+
+                if (historyData.length === 0) {
+                    tableBody.innerHTML = '<tr><td colspan="3" class="px-6 py-4 text-center text-gray-500">No alerts recorded yet.</td></tr>';
+                    return;
+                }
+
+                historyData.forEach(alert => {
+                    const row = `
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(alert.timestamp).toLocaleString()}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-red-600">${alert.temperature.toFixed(2)} °C</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${alert.details}</td>
+                        </tr>
+                    `;
+                    tableBody.innerHTML += row;
+                });
+            } catch (error) {
+                console.error('Failed to fetch history:', error);
+            }
+        }
+
+        // --- Manual Refresh ---
+        async function refreshAllData() {
+            const refreshButton = document.getElementById('refresh-button');
+            const originalText = refreshButton.innerHTML;
+            refreshButton.disabled = true;
+            refreshButton.innerHTML = `
+                <svg class="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Refreshing...`;
+            await Promise.all([fetchData(), fetchHistory()]);
+            setTimeout(() => {
+                refreshButton.innerHTML = originalText;
+                refreshButton.disabled = false;
+            }, 500);
+        }
+
+        // --- PDF Export ---
+        function exportCertificate() {
+            const serialNumber = document.getElementById('display-serialNumber').textContent;
+            if (serialNumber === 'N/A' || !serialNumber.trim()) {
+                alert('Please register a vehicle first before exporting a certificate.');
+                switchTab('registration');
+                return;
+            }
+            // Update preview before download
+            updateCertificatePreview();
+            window.location.href = `${API_BASE_URL}/export_pdf/${serialNumber}`;
+        }
+
+        // --- Initial Load ---
+        document.addEventListener('DOMContentLoaded', () => {
+            refreshAllData(); // Initial fetch
+            setInterval(fetchData, 10000); // Every 10 seconds
+            setInterval(fetchHistory, 30000); // Every 30 seconds
+        });
+    </script>
+</body>
+</html>
